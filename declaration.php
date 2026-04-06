@@ -1,63 +1,73 @@
 <?php
+include('table.php'); // Connexion à la base de données
+
 $statut = "";
 
 if (isset($_POST['valider_declaration'])) {
-    
-    // 1. Génération automatique du Numéro de Registre (basé sur le temps)
-    $num_registre = "REG-" . date("Ymd-His"); 
 
-    // 2. Récupération des données du formulaire
-    $prenom = htmlspecialchars($_POST['prenom']);
-    $nom    = htmlspecialchars($_POST['nom']);
-    $date_naiss = $_POST['date_naiss'];
-    $heure_naiss = $_POST['heure_naiss']; // Nouveau
-    $lieu_naiss  = htmlspecialchars($_POST['lieu_naiss']);
-    $nom_pere    = htmlspecialchars($_POST['nom_pere']);
-    $nom_mere    = htmlspecialchars($_POST['nom_mere']);
-    
-    // Coordonnées pour l'envoi du PDF
-    $email_parent = htmlspecialchars($_POST['email_parent']); // Nouveau
-    $whatsapp_parent = htmlspecialchars($_POST['whatsapp_parent']); // Nouveau
+    // 1. Génération unique du numéro de registre
+    $num_registre = "REG-" . date("Ymd-His");
 
-    // 3. Création de la ligne de données (Ordre précis pour la lecture future)
-    // Index : 0:Num | 1:Prénom | 2:Nom | 3:Date | 4:Heure | 5:Lieu | 6:Père | 7:Mère | 8:Email | 9:WhatsApp
-    $ligne = $num_registre . " | " . $prenom . " | " . $nom . " | " . $date_naiss . " | " . $heure_naiss . " | " . $lieu_naiss . " | " . $nom_pere . " | " . $nom_mere . " | " . $email_parent . " | " . $whatsapp_parent . "\n";
+    // 2. Récupération et sécurisation des données
+    $prenom          = htmlspecialchars($_POST['prenom']);
+    $nom             = htmlspecialchars($_POST['nom']);
+    $date_naiss      = $_POST['date_naiss'];
+    $heure_naiss     = $_POST['heure_naiss'];
+    $lieu_naiss      = htmlspecialchars($_POST['lieu_naiss']);
+    $nom_pere        = htmlspecialchars($_POST['nom_pere']);
+    $nom_mere        = htmlspecialchars($_POST['nom_mere']);
+    $email_parent    = htmlspecialchars($_POST['email_parent']);
+    $whatsapp_parent = htmlspecialchars($_POST['whatsapp_parent']);
 
-    // 4. Écriture dans le fichier
+    // 3. Sauvegarde dans le fichier registre.txt
+    $ligne = "$num_registre | $prenom | $nom | $date_naiss | $heure_naiss | $lieu_naiss | $nom_pere | $nom_mere | $email_parent | $whatsapp_parent\n";
     $fichier = fopen("registre.txt", "a");
     if ($fichier) {
         fwrite($fichier, $ligne);
         fclose($fichier);
-        $statut = "<div style='background:#d4edda; color:#155724; padding:15px; border-radius:8px; border:1px solid #c3e6cb; margin-bottom:20px;'>
-                    ✅ <strong>Succès !</strong> L'acte n° <strong>$num_registre</strong> a été créé.
-                  </div>";
     }
-}
-?>
-<?php
-include('table.php'); // On inclut le fichier de connexion
 
-if (isset($_POST['valider_declaration'])) {
-     $n_reg=  "REG-" . date("Ymd-His");
-    $prenom = mysqli_real_escape_string($conn, $_POST['prenom']);
-    $nom = mysqli_real_escape_string($conn, $_POST['nom']);
-    $date_naiss = $_POST['date_naiss'];
-    $heure_naiss = $_POST['heure_naiss'];
-    $lieu_naiss = mysqli_real_escape_string($conn, $_POST['lieu_naiss']);
-    $nom_pere = mysqli_real_escape_string($conn, $_POST['nom_pere']);
-    $nom_mere = mysqli_real_escape_string($conn, $_POST['nom_mere']);
-    $email = mysqli_real_escape_string($conn, $_POST['email_parent']);
-    $whatsapp = mysqli_real_escape_string($conn, $_POST['whatsapp_parent']);
-
-    // Requête SQL d'insertion
-    // Version recommandée : on laisse la base de données gérer l'ID automatique (n_reg)
-$sql = "INSERT INTO naissance (n_reg,prenom, nom, date_naiss, heure_naiss, lieu_naiss, nom_pere, nom_mere, email, whatsapp) 
-        VALUES ('$n_reg','$prenom', '$nom', '$date_naiss', '$heure_naiss', '$lieu_naiss', '$nom_pere', '$nom_mere', '$email', '$whatsapp')";
-
-    if (mysqli_query($conn, $sql)) {
-        echo "Enregistrement réussI dans la base de données SQL !";
+    // 4. Sauvegarde dans la base de données (requête préparée = sécurisé)
+    if (!$conn) {
+        $statut = "<div style='background:#f8d7da; color:#721c24; padding:15px; border-radius:8px; border:1px solid #f5c6cb; margin-bottom:20px;'>
+                    ❌ <strong>Erreur :</strong> Connexion à la base de données impossible.
+                   </div>";
     } else {
-        echo "Erreur : " . mysqli_error($conn);
+        $sql = "INSERT INTO naissance (n_reg, prenom, nom, date_naiss, heure_naiss, lieu_naiss, nom_pere, nom_mere, email, whatsapp) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, "ssssssssss",
+                $num_registre,
+                $prenom,
+                $nom,
+                $date_naiss,
+                $heure_naiss,
+                $lieu_naiss,
+                $nom_pere,
+                $nom_mere,
+                $email_parent,
+                $whatsapp_parent
+            );
+
+            if (mysqli_stmt_execute($stmt)) {
+                $statut = "<div style='background:#d4edda; color:#155724; padding:15px; border-radius:8px; border:1px solid #c3e6cb; margin-bottom:20px;'>
+                            ✅ <strong>Succès !</strong> L'acte n° <strong>$num_registre</strong> a été enregistré avec succès.
+                           </div>";
+            } else {
+                $statut = "<div style='background:#f8d7da; color:#721c24; padding:15px; border-radius:8px; border:1px solid #f5c6cb; margin-bottom:20px;'>
+                            ❌ <strong>Erreur SQL :</strong> " . mysqli_stmt_error($stmt) . "
+                           </div>";
+            }
+
+            mysqli_stmt_close($stmt);
+        } else {
+            $statut = "<div style='background:#f8d7da; color:#721c24; padding:15px; border-radius:8px; border:1px solid #f5c6cb; margin-bottom:20px;'>
+                        ❌ <strong>Erreur :</strong> Impossible de préparer la requête. " . mysqli_error($conn) . "
+                       </div>";
+        }
     }
 }
 ?>
@@ -83,7 +93,7 @@ $sql = "INSERT INTO naissance (n_reg,prenom, nom, date_naiss, heure_naiss, lieu_
 
 <div class="container">
     <h2>Enregistrement de Naissance</h2>
-    
+
     <?php echo $statut; ?>
 
     <form method="POST">
@@ -98,7 +108,7 @@ $sql = "INSERT INTO naissance (n_reg,prenom, nom, date_naiss, heure_naiss, lieu_
                 <input type="text" name="nom" required>
             </div>
         </div>
-        
+
         <div class="grid">
             <div>
                 <label>Date de naissance :</label>
@@ -133,7 +143,9 @@ $sql = "INSERT INTO naissance (n_reg,prenom, nom, date_naiss, heure_naiss, lieu_
 
         <button type="submit" name="valider_declaration" class="btn">ENREGISTRER L'ACTE OFFICIEL</button>
     </form>
-    <p style="text-align:center;"><a href="index.php" style="color:#7f8c8d; text-decoration:none; font-size:14px;">⬅ Retour</a></p>
+    <p style="text-align:center;">
+        <a href="index.php" style="color:#7f8c8d; text-decoration:none; font-size:14px;">⬅ Retour</a>
+    </p>
 </div>
 
 </body>
